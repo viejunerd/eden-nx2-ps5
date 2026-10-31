@@ -65,26 +65,30 @@ install_host_tools() {
 }
 
 # ---------------------------------------------------------------- 2a. parches propios sobre ProsperoEden
-# patches/*.patch se aplican al código de ProsperoEden (no al de Eden). Ahora mismo:
-#   prospero-folder-games.patch: la biblioteca lista juegos en carpeta (Juego/base/exefs/main,
-#   Juego/updates/exefs/main) además de .nsp/.xci. Hecho sobre mrggbond/prosperoeden e9f30ae.
-# Se deshace y se rehace en cada ejecución, así un 'git pull' del repo no choca con ellos.
+# patches/folder-games-<commit>.patch: la biblioteca lista juegos extraídos (Juego/base/exefs/main,
+# Juego/updates/exefs/main) además de .nsp/.xci. Hay uno por versión de ProsperoEden:
+#   e9f30ae = mrggbond/prosperoeden main, a26ba78 = Swordpdf/ProsperoEden main (01.005.000).
+# Se deshace lo aplicado en una ejecución anterior y se aplica el primero que encaje.
 apply_prospero_patches() {
-  local dir patch
+  local dir patch applied=""
   dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" \
     || { warn "No encuentro la carpeta patches/; ProsperoEden se compila sin parches propios."; return 0; }
   for patch in "$dir"/*.patch; do
     [[ -f "$patch" ]] || continue
     if git apply -R --check "$patch" 2>/dev/null; then git apply -R "$patch"; fi
+  done
+  for patch in "$dir"/*.patch; do
+    [[ -f "$patch" ]] || continue
     if git apply --check "$patch" 2>/dev/null; then
-      git apply "$patch"
-      log "Parche aplicado: $(basename "$patch")"
-    else
-      warn "El parche $(basename "$patch") NO encaja con este ProsperoEden ($(git rev-parse --short HEAD))."
-      warn "Se compila sin él: los juegos en carpeta no saldrán en la biblioteca. Hay que rehacerlo."
-      git apply --check "$patch" 2>&1 | head -5 >&2 || true
+      git apply "$patch"; applied="$(basename "$patch")"
+      log "Parche aplicado: $applied (ProsperoEden $(git rev-parse --short HEAD))"
+      break
     fi
   done
+  if [[ -z "$applied" ]]; then
+    warn "Ningún parche de patches/ encaja con este ProsperoEden ($(git rev-parse --short HEAD))."
+    warn "Se compila sin ellos: los juegos en carpeta no saldrán en la biblioteca. Hay que rehacer el parche."
+  fi
 }
 
 # ---------------------------------------------------------------- 2. ProsperoEden
