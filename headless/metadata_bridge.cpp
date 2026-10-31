@@ -40,6 +40,7 @@
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/nca_metadata.h"
+#include "core/file_sys/program_metadata.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/romfs.h"
 #include "core/file_sys/submission_package.h"
@@ -224,6 +225,13 @@ uint64_t eden_game_title_id(const char* rom_path) {
     std::string path = rom_path;
     std::transform(path.begin(), path.end(), path.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (path.ends_with("/exefs/main")) {
+        // A folder game (eden-nx2): its program's title ID is in the main.npdm beside `main`.
+        const auto directory = file->GetContainingDirectory();
+        const auto npdm = directory ? directory->GetFile("main.npdm") : nullptr;
+        FileSys::ProgramMetadata program;
+        return npdm && program.Load(npdm) == Loader::ResultStatus::Success ? program.GetTitleID() : 0;
+    }
     if (path.ends_with(".xci")) {
         FileSys::XCI image(file);
         return image.GetStatus() == Loader::ResultStatus::Success ? image.GetProgramTitleID() : 0;
@@ -247,6 +255,7 @@ int eden_extract_game_metadata(const char* rom_path, const char* keys_dir,
     std::string path = rom_path;
     std::transform(path.begin(), path.end(), path.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (path.ends_with("/exefs/main")) return 0;  // a folder game has no control data to read
     const bool xci = path.size() >= 4 && path.substr(path.size() - 4) == ".xci";
     FileSys::VirtualDir packed_update;
     const auto romfs = OpenControlRomFs(file, xci, &packed_update);
@@ -275,6 +284,7 @@ uint32_t eden_game_supported_languages(const char* rom_path, const char* keys_di
         std::string path = rom_path;
         std::transform(path.begin(), path.end(), path.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (path.ends_with("/exefs/main")) return 0;
         FileSys::VirtualDir packed_update;
         const auto romfs = OpenControlRomFs(file, path.ends_with(".xci"), &packed_update);
         if (!romfs) return 0;

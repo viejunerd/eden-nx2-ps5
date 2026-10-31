@@ -11,6 +11,7 @@
 #include "profiles.h"
 #include "update_notice.h"
 #include "game_name.h"
+#include "folder_games.h"
 #include "native_directory.h"
 #include "reshade_folder.h"
 #include "pe/core/strings.hpp"
@@ -305,6 +306,8 @@ std::vector<std::string> GameFiles() {
                 files.push_back(file);
         }
     }
+    // Extracted titles (Game/base/exefs/main), which eden-nx2 loads by the path of their `main`.
+    for (std::string& folder_game : Eden::FindFolderGames(roms)) files.push_back(std::move(folder_game));
     return files;
 }
 
@@ -741,16 +744,17 @@ std::vector<pe::ui::Game> EdenServices::games() {
         return sources;
     };
     for (const std::string& file : files) {
-        std::string format = file.substr(file.size() - 3);
+        const bool folder_game = Eden::IsFolderGame(file);
+        std::string format = folder_game ? std::string{"DIR"} : file.substr(file.size() - 3);
         std::transform(format.begin(), format.end(), format.begin(),
                        [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
         const std::string path = Eden::AssetsPath("roms/" + file);
         struct stat info {};
         if (stat(path.c_str(), &info) != 0 || !S_ISREG(info.st_mode)) continue;
         pe::ui::Game game;
-        game.name = CleanTitle(std::filesystem::path(file).filename().string());
+        game.name = folder_game ? Eden::FolderGameTitle(file) : CleanTitle(std::filesystem::path(file).filename().string());
         game.format = format;
-        game.size = SizeLabel(static_cast<double>(info.st_size));
+        game.size = folder_game ? std::string{"-"} : SizeLabel(static_cast<double>(info.st_size));
         game.file = file;
         // A game whose data cannot be read is still listed, by its file name.
         try {
@@ -758,7 +762,8 @@ std::vector<pe::ui::Game> EdenServices::games() {
             // The cover is replaced in one step: the menu may be loading the old one right now.
             const std::string cover = CoverPath(file);
             const std::string staged = cover + ".new";
-            const int metadata = eden_extract_game_metadata(path.c_str(), Eden::AssetsPath("keys").c_str(),
+            // A folder game has no control data to read: it keeps its folder's name and no cover.
+            const int metadata = folder_game ? 0 : eden_extract_game_metadata(path.c_str(), Eden::AssetsPath("keys").c_str(),
                                                             staged.c_str(), title, sizeof(title));
             if (metadata & EDEN_METADATA_TITLE) {
                 game.name = title;
@@ -1533,7 +1538,8 @@ std::vector<pe::ui::Download> EdenServices::downloads() {
 }
 
 bool EdenServices::delete_game(const pe::ui::Game& game, std::string* message) {
-    if (!Eden::FilesystemAccess() || game.sources.empty() || game.remote || !Eden::ValidRomPath(game.file))
+    if (!Eden::FilesystemAccess() || game.sources.empty() || game.remote || !Eden::ValidRomPath(game.file) ||
+        Eden::IsFolderGame(game.file))
         return false;
     const std::lock_guard lock(bridge_);
     const std::string rom = Eden::AssetsPath("roms/" + game.file);

@@ -185,10 +185,27 @@ inline int KeyIndex(const std::string& value, const char* const* keys, int count
     return fallback;
 }
 
+// A folder game: an extracted title (eden-nx2, Switch 2) named by the path of its ExeFS `main`
+// in the game files folder, "Game/base/exefs/main". No empty, "." or ".." part, no leading '/'.
+inline bool IsFolderGame(std::string_view name) {
+    constexpr std::string_view kTail = "/exefs/main";
+    if (name.size() <= kTail.size() || name.size() > 255 || name.front() == '/' || !name.ends_with(kTail)) return false;
+    for (unsigned char c : name)
+        if (c < 32 || c == 127 || c == '\\') return false;
+    for (std::size_t start = 0;;) {
+        const std::size_t end = name.find('/', start);
+        const std::string_view part = name.substr(start, end == std::string_view::npos ? end : end - start);
+        if (part.empty() || part == "." || part == "..") return false;
+        if (end == std::string_view::npos) return true;
+        start = end + 1;
+    }
+}
+
 // A game's file as the Library names it: its path in the game files folder's roms/, either its
 // name ("Game.nsp") or a game folder and its name ("Game/Game.nsp", the game's update and DLC
 // beside it). Readable characters, one folder at most, never a hidden folder, "." or "..".
 inline bool ValidRomPath(std::string_view name) {
+    if (IsFolderGame(name)) return true;
     if (name.size() < 5 || name.size() > 511) return false;
     for (unsigned char c : name)
         if (c < 32 || c == 127 || c == '\\') return false;
