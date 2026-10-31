@@ -5,6 +5,7 @@
 // SPDX-FileCopyrightText: 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
 #include <atomic>
 #include <algorithm>
 #include <cstring>
@@ -241,6 +242,25 @@ struct Memory::Impl {
     template<typename F1, typename F2, typename F3>
     inline bool WalkBlock(const Common::ProcessAddress addr, const std::size_t size, F1&& on_unmapped, F2&& on_memory, F3&& on_rasterizer) {
         std::size_t offset = 0;
+        {
+            static std::atomic<int> diag_calls{0};
+            const bool diag_null = current_page_table == nullptr ||
+                                   current_page_table->entries.data() == nullptr;
+            if (diag_null || diag_calls.fetch_add(1) < 12) {
+                std::fprintf(stderr,
+                             "[NX2DIAG] WalkBlock addr=%#llx size=%zu table=%p entries=%p "
+                             "entries_size=%zu%s\n",
+                             static_cast<unsigned long long>(GetInteger(addr)), size,
+                             static_cast<const void*>(current_page_table),
+                             current_page_table ? static_cast<const void*>(current_page_table->entries.data()) : nullptr,
+                             current_page_table ? static_cast<size_t>(current_page_table->entries.size()) : size_t{0},
+                             diag_null ? "  <-- NULL, returning false instead of crashing" : "");
+                std::fflush(stderr);
+            }
+            if (diag_null) {
+                return false;
+            }
+        }
         if (!AddressSpaceContains(*current_page_table, addr, size)) {
             on_unmapped(offset, size, addr);
             return false;

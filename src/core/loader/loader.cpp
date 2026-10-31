@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -400,6 +401,12 @@ std::unique_ptr<AppLoader> GetLoader(Core::System& system, FileSys::VirtualFile 
         type = FileType::DeconstructedRomDirectory;
     }
 
+    std::fprintf(stderr,
+                 "[NX2DIAG] GetLoader file=%s type=%s filename_type=%s containing_dir=%d "
+                 "deconstructed_ok=%d\n",
+                 file->GetName().c_str(), GetFileTypeString(type).c_str(),
+                 GetFileTypeString(filename_type).c_str(), file->GetContainingDirectory() != nullptr,
+                 IdentifyFileLoader<AppLoader_DeconstructedRomDirectory>(file).has_value());
     // Special case: 00 is either a NCA or NAX.
     if (type != filename_type && !(file->GetName() == "00" && type == FileType::NAX)) {
         LOG_WARNING(Loader, "File {} has a different type ({}) than its extension.",
