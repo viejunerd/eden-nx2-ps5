@@ -1,0 +1,218 @@
+diff --git a/headless/folder_games.h b/headless/folder_games.h
+new file mode 100644
+index 0000000..003b884
+--- /dev/null
++++ b/headless/folder_games.h
+@@ -0,0 +1,60 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#pragma once
++// Folder games: extracted titles in the game files' roms/ folder, found the way eden-nx2's game
++// list does it (any file named `main`), here only inside an exefs/ folder that also holds
++// main.npdm: "Game/base/exefs/main" and "Game/updates/exefs/main" are two entries.
++#include <algorithm>
++#include <string>
++#include <sys/stat.h>
++#include <vector>
++
++#include "native_directory.h"
++#include "settings_store.h"
++
++namespace Eden {
++
++namespace folder_games_detail {
++inline bool IsFileAt(const std::string& path) {
++    struct stat info {};
++    return stat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode);
++}
++
++inline void Find(const std::string& roms, const std::string& relative, int depth, std::vector<std::string>& found) {
++    if (depth > 4 || found.size() >= 512) return;
++    std::error_code error;
++    const std::string folder = relative.empty() ? roms : roms + "/" + relative;
++    for (const auto& entry : ReadNativeDirectory(folder, error)) {
++        const std::string name = entry.path().filename().string();
++        if (name.empty() || name[0] == '.') continue;
++        const std::string child = relative.empty() ? name : relative + "/" + name;
++        struct stat info {};
++        if (stat((roms + "/" + child).c_str(), &info) != 0 || !S_ISDIR(info.st_mode)) continue;
++        if (name == "exefs") {
++            if (!relative.empty() && IsFileAt(roms + "/" + child + "/main") &&
++                IsFileAt(roms + "/" + child + "/main.npdm") && IsFolderGame(child + "/main"))
++                found.push_back(child + "/main");
++        } else {
++            Find(roms, child, depth + 1, found);
++        }
++    }
++}
++}  // namespace folder_games_detail
++
++// The folder games under roms, as library names ("Game/base/exefs/main"), sorted.
++inline std::vector<std::string> FindFolderGames(const std::string& roms) {
++    std::vector<std::string> found;
++    folder_games_detail::Find(roms, {}, 0, found);
++    std::sort(found.begin(), found.end());
++    return found;
++}
++
++// "Game [base]" for "Game/base/exefs/main", "Game" for "Game/exefs/main".
++inline std::string FolderGameTitle(const std::string& name) {
++    const std::size_t first = name.find('/');
++    const std::size_t last = name.rfind("/exefs/main");
++    std::string title = name.substr(0, first);
++    if (first != std::string::npos && first < last) title += " [" + name.substr(first + 1, last - first - 1) + "]";
++    return title;
++}
++
++}  // namespace Eden
+diff --git a/headless/metadata_bridge.cpp b/headless/metadata_bridge.cpp
+index e995b7c..ae3ae47 100644
+--- a/headless/metadata_bridge.cpp
++++ b/headless/metadata_bridge.cpp
+@@ -40,6 +40,7 @@
+ #include "core/file_sys/content_archive.h"
+ #include "core/file_sys/control_metadata.h"
+ #include "core/file_sys/nca_metadata.h"
++#include "core/file_sys/program_metadata.h"
+ #include "core/file_sys/registered_cache.h"
+ #include "core/file_sys/romfs.h"
+ #include "core/file_sys/submission_package.h"
+@@ -194,6 +195,13 @@ uint64_t eden_game_title_id(const char* rom_path) {
+     std::string path = rom_path;
+     std::transform(path.begin(), path.end(), path.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
++    if (path.ends_with("/exefs/main")) {
++        // A folder game (eden-nx2): its program's title ID is in the main.npdm beside `main`.
++        const auto directory = file->GetContainingDirectory();
++        const auto npdm = directory ? directory->GetFile("main.npdm") : nullptr;
++        FileSys::ProgramMetadata program;
++        return npdm && program.Load(npdm) == Loader::ResultStatus::Success ? program.GetTitleID() : 0;
++    }
+     if (path.ends_with(".xci")) {
+         FileSys::XCI image(file);
+         return image.GetStatus() == Loader::ResultStatus::Success ? image.GetProgramTitleID() : 0;
+@@ -217,6 +225,7 @@ int eden_extract_game_metadata(const char* rom_path, const char* keys_dir,
+     std::string path = rom_path;
+     std::transform(path.begin(), path.end(), path.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
++    if (path.ends_with("/exefs/main")) return 0;  // a folder game has no control data to read
+     const bool xci = path.size() >= 4 && path.substr(path.size() - 4) == ".xci";
+     const auto romfs = OpenControlRomFs(file, xci);
+     if (!romfs) return 0;
+@@ -244,6 +253,7 @@ uint32_t eden_game_supported_languages(const char* rom_path, const char* keys_di
+         std::string path = rom_path;
+         std::transform(path.begin(), path.end(), path.begin(),
+                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
++        if (path.ends_with("/exefs/main")) return 0;
+         const auto romfs = OpenControlRomFs(file, path.ends_with(".xci"));
+         if (!romfs) return 0;
+         return GameLanguages()[rom_path] = ReadLanguages(romfs);
+diff --git a/headless/prosperoeden/eden_services.cpp b/headless/prosperoeden/eden_services.cpp
+index f96a171..1e4bcec 100644
+--- a/headless/prosperoeden/eden_services.cpp
++++ b/headless/prosperoeden/eden_services.cpp
+@@ -11,6 +11,7 @@
+ #include "profiles.h"
+ #include "update_notice.h"
+ #include "game_name.h"
++#include "folder_games.h"
+ #include "native_directory.h"
+ #include "pe/core/strings.hpp"
+ #include "radio_input.h"
+@@ -164,6 +165,7 @@ int CountFiles(const std::string& directory, std::initializer_list<const char*>
+ // A title from the file's name: without its extension and the tags dumps carry
+ // ("Name [0100...][v0]", "Name (USA)").
+ std::string CleanTitle(const std::string& filename) {
++    if (Eden::IsFolderGame(filename)) return Eden::FolderGameTitle(filename);
+     std::string title = std::filesystem::path(filename).stem().string();
+     if (title.rfind("[Game] ", 0) == 0) title.erase(0, 7);
+     if (const auto tag = title.find_first_of("[("); tag != std::string::npos && tag > 0) title.erase(tag);
+@@ -267,6 +269,7 @@ int CountInstalledGames() {
+         const std::string filename = entry.path().filename().string();
+         if (Eden::ValidRomFilename(filename) && IsFile(Eden::AssetsPath("roms/" + filename))) ++count;
+     }
++    count += static_cast<int>(Eden::FindFolderGames(Eden::AssetsPath("roms")).size());
+     return count;
+ }
+ 
+@@ -692,21 +695,26 @@ std::vector<pe::ui::Game> EdenServices::games() {
+             sources.push_back(names.contains(game.source) ? names.at(game.source) : game.source);
+         return sources;
+     };
+-    for (const auto& entry : entries) {
+-        const std::string file = entry.path().filename().string();
++    // The NSP and XCI files, then the folder games (Game/base/exefs/main).
++    std::vector<std::string> library_files;
++    for (const auto& entry : entries) library_files.push_back(entry.path().filename().string());
++    for (std::string& folder_game : Eden::FindFolderGames(Eden::AssetsPath("roms")))
++        library_files.push_back(std::move(folder_game));
++    for (const std::string& file : library_files) {
++        const bool folder_game = Eden::IsFolderGame(file);
+         const std::size_t dot = file.find_last_of('.');
+-        if (file == "." || file == ".." || dot == std::string::npos) continue;
+-        std::string format = file.substr(dot + 1);
++        if (!folder_game && (file == "." || file == ".." || dot == std::string::npos)) continue;
++        std::string format = folder_game ? std::string{"DIR"} : file.substr(dot + 1);
+         std::transform(format.begin(), format.end(), format.begin(),
+                        [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+-        if (format != "NSP" && format != "XCI") continue;
++        if (!folder_game && format != "NSP" && format != "XCI") continue;
+         const std::string path = Eden::AssetsPath("roms/" + file);
+         struct stat info {};
+         if (stat(path.c_str(), &info) != 0 || !S_ISREG(info.st_mode)) continue;
+         pe::ui::Game game;
+         game.name = CleanTitle(file);
+         game.format = format;
+-        game.size = SizeLabel(static_cast<double>(info.st_size));
++        game.size = folder_game ? std::string{"-"} : SizeLabel(static_cast<double>(info.st_size));
+         game.file = file;
+         // A game whose data cannot be read is still listed, by its file name.
+         try {
+@@ -714,7 +722,8 @@ std::vector<pe::ui::Game> EdenServices::games() {
+             // The cover is replaced in one step: the menu may be loading the old one right now.
+             const std::string cover = CoverPath(file);
+             const std::string staged = cover + ".new";
+-            const int metadata = eden_extract_game_metadata(path.c_str(), Eden::AssetsPath("keys").c_str(),
++            // A folder game has no control data to read: it keeps its folder's name and no cover.
++            const int metadata = folder_game ? 0 : eden_extract_game_metadata(path.c_str(), Eden::AssetsPath("keys").c_str(),
+                                                             staged.c_str(), title, sizeof(title));
+             if (metadata & EDEN_METADATA_TITLE) {
+                 game.name = title;
+@@ -1322,7 +1331,8 @@ std::vector<pe::ui::Download> EdenServices::downloads() {
+ }
+ 
+ bool EdenServices::delete_game(const pe::ui::Game& game, std::string* message) {
+-    if (!Eden::FilesystemAccess() || game.sources.empty() || game.remote || !Eden::ValidRomFilename(game.file))
++    if (!Eden::FilesystemAccess() || game.sources.empty() || game.remote || !Eden::ValidRomFilename(game.file) ||
++        Eden::IsFolderGame(game.file))
+         return false;
+     const std::lock_guard lock(bridge_);
+     const std::string rom = Eden::AssetsPath("roms/" + game.file);
+diff --git a/headless/settings_store.h b/headless/settings_store.h
+index aa6fbc0..232e9d3 100644
+--- a/headless/settings_store.h
++++ b/headless/settings_store.h
+@@ -167,7 +167,24 @@ inline int KeyIndex(const std::string& value, const char* const* keys, int count
+     return fallback;
+ }
+ 
++// A folder game: an extracted title (eden-nx2, Switch 2) named by the path of its ExeFS `main`
++// in the game files folder, "Game/base/exefs/main". No empty, "." or ".." part, no leading '/'.
++inline bool IsFolderGame(std::string_view name) {
++    constexpr std::string_view kTail = "/exefs/main";
++    if (name.size() <= kTail.size() || name.size() > 255 || name.front() == '/' || !name.ends_with(kTail)) return false;
++    for (unsigned char c : name)
++        if (c < 32 || c == 127 || c == '\\') return false;
++    for (std::size_t start = 0;;) {
++        const std::size_t end = name.find('/', start);
++        const std::string_view part = name.substr(start, end == std::string_view::npos ? end : end - start);
++        if (part.empty() || part == "." || part == "..") return false;
++        if (end == std::string_view::npos) return true;
++        start = end + 1;
++    }
++}
++
+ inline bool ValidRomFilename(std::string_view name) {
++    if (IsFolderGame(name)) return true;
+     if (name.size() < 5 || name.size() > 255) return false;
+     for (unsigned char c : name)
+         if (c < 32 || c == 127 || c == '/' || c == '\\') return false;
