@@ -317,6 +317,10 @@ swap_and_build() {
   fi
   log "Sustituyendo $eden_dir por eden-nx2"
   rsync -a --delete --exclude '.git' "$src/" "$eden_dir/"
+  if [[ "${DIAG:-1}" == 1 ]]; then
+    log "Instrumentando eden-nx2 con logs NX2DIAG (DIAG=0 los quita)"
+    python3 -I "$SCRIPT_DIR/diag-nx2.py" "$eden_dir" || warn "diag-nx2.py falló; se compila sin diagnóstico."
+  fi
   # ProsperoEden no toca lo que ya existe en .deps, así que la sustitución se respeta.
   make deps-status || true
 
