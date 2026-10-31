@@ -86,3 +86,13 @@ Needs a jailbroken console (kstuff-lite or etaHEN) and **ShadowMountPlus**.
 - Verify the dependency mirrors by SHA-256/commit, and do not replace pinned sources with unverified ones.
 - Game files, keys and firmware are the user's own, in `/data/prosperoeden/`. Never add them to this folder.
 - This folder is not a git repo. If you init one, keep the build outputs and `PPSA99208/` (106 MB) out of it.
+
+## Switch 2 on PS5: known obstacles (from niakw/ProsperoEden-Encore's research docs, read 2026-10-31)
+
+Encore (github.com/niakw/ProsperoEden-Encore, fork of ProsperoEden 1.000.040, firmware 13.60 target) has NO Switch 2 support in its releases. Its `docs/NS2_PS5_FEASIBILITY_2026-10-30.md` calls NS2 on PS5 "plausible long term, not demonstrated" and nothing was run on a PS5. Points that matter for us:
+
+- The Windows reference (0x2593/Eden-NS2, same family as eden-nx2) reports about 5-8 FPS in 3D gameplay, undecoded videos and sync/memory defects. Expect a PS5 build to be slower or not run a commercial title at all.
+- NS2 needs 6 guest cores (eden-nx2 already has `NUM_CPU_CORES = 6` and a 6-core exclusive monitor), LSE atomics and RETAA/RETAB/LDAPR translation in Dynarmic, ASTC and sparse-image handling, and a larger memory budget (their notes say 12 GiB).
+- **Open risk in our build, not yet checked:** ProsperoEden's `headless/performance.cpp` and `main.cpp` assume 4 guest cores (`std::array<CpuSample, 4>`, `loads[4]`, "guest cores 0-2" thread pinning). With 6 cores, per-core indexing may go out of bounds. Review before a first run if it crashes at boot or in the HUD.
+- Firmware 13.60: ProsperoEden's own README says the 13.60 fixes for its PS5-Lapy helper were merged upstream (PS5-Lapy-JB-Daemon PR #48 and #49), so switching to Encore is not needed for that. Our `lapy-manifest.json` still lists 12.02 as the validated firmware.
+- Encore's folder layout for extracted games differs from ours: it needs `roms/<title>/main` and `main.npdm` flat, and says nested directories are not discovered. Ours reads `roms/<Game>/base/exefs/main`.
