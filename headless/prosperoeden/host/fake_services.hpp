@@ -271,7 +271,7 @@ class FakeServices : public ui::Services
     const std::vector<std::string> &language_labels() override;
     std::string language_region(int language) override;
     std::string setup_details() override;
-    std::string crash_reports_folder() override { return "/data/prosperoeden/logs"; }
+    std::string crash_reports_folder() override { return "/data/eglantine/logs"; }
     std::vector<std::string> wallpapers() override;
     std::string wallpapers_folder() override
     {
@@ -289,7 +289,7 @@ class FakeServices : public ui::Services
     }
     std::string default_files_folder() override
     {
-        return "/data/prosperoeden";
+        return "/data/eglantine";
     }
     bool set_files_folder(const std::string &directory) override
     {

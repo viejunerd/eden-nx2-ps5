@@ -57,7 +57,7 @@ bool DevelopmentOffer(self_update_offer& out) {
         return false;
     self_update_offer filled{};
     if (!update_check_read_param(AppFile("sce_sys/param.json").c_str(), filled.title, filled.installed)) return false;
-    std::snprintf(filled.name, sizeof(filled.name), "ProsperoEden");
+    std::snprintf(filled.name, sizeof(filled.name), "Eglantine");
     std::snprintf(filled.available, sizeof(filled.available), "%s", available.c_str());
     std::snprintf(filled.version, sizeof(filled.version), "%s", version.c_str());
     std::snprintf(filled.artifact, sizeof(filled.artifact), "%s", artifact.c_str());
@@ -185,7 +185,7 @@ bool Apply() {
     const std::lock_guard guard(lock);
     if (!begun) return false;
     const bool going = self_update_apply(&job) == 1;
-    Report("update", going ? "Staged: the helper replaces the files once ProsperoEden has closed"
+    Report("update", going ? "Staged: the helper replaces the files once Eglantine has closed"
                            : "The helper did not take the go-ahead");
     return going;
 }

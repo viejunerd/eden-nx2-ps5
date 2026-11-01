@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Everything the launcher remembers, in one JSON file (config/prosperoeden.json):
+// Everything the launcher remembers, in one JSON file (config/eglantine.json):
 //
 //   {
 //     "version": 1,
@@ -230,7 +230,7 @@ inline bool ValidWallpaperName(std::string_view name) {
     return true;
 }
 
-inline std::string SettingsFile() { return ConfigFile("prosperoeden.json"); }
+inline std::string SettingsFile() { return ConfigFile("eglantine.json"); }
 
 namespace Settings {
 using Json = nlohmann::json;

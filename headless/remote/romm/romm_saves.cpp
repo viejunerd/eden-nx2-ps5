@@ -306,7 +306,7 @@ class RommSaves final : public SaveStore {
             device_ = Text(state, "device_id");
             return true;
         }
-        const Json payload = {{"name", "ProsperoEden (PS5)"}, {"platform", "ps5"}, {"client", "ProsperoEden"},
+        const Json payload = {{"name", "Eglantine (PS5)"}, {"platform", "ps5"}, {"client", "Eglantine"},
                               {"hostname", "prosperoeden-" + ConsoleId(folder_)}, {"sync_mode", "api"},
                               {"allow_existing", true}};
         Client::Answer answer;
@@ -362,8 +362,8 @@ bool PairStart(const nlohmann::json& settings, const std::string& folder, Pairin
     std::unique_ptr<Client> client = Client::Make(entry, "save-sync.json", error);
     if (!client) return false;
     const Json payload = {{"client_device_identifier", "prosperoeden-" + ConsoleId(folder)},
-                          {"name", "ProsperoEden (PS5)"},
-                          {"client", "ProsperoEden"},
+                          {"name", "Eglantine (PS5)"},
+                          {"client", "Eglantine"},
                           {"platform", "ps5"},
                           {"requested_scopes", kScopes}};
     Client::Answer answer;

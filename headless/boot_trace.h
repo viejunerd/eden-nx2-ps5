@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Diagnostic builds: a start-up trace for crashes reported by testers.
 //
-// Each line goes to the kernel log at once (prefix "[ProsperoEden diag]") and is kept in memory.
+// Each line goes to the kernel log at once (prefix "[Eglantine diag]") and is kept in memory.
 // Before filesystem access exists, the lines are also written to /download0/boot-trace.txt with a
 // plain synchronous write: no thread is started there, because the elevation helper accepts only a
 // single-threaded process. Once the logs folder exists (Ready), the whole trace so far is written to
@@ -66,7 +66,7 @@ inline void Emit(const char* line) {
 // default action runs (the system's crash report). Only async-signal-safe calls.
 inline void OnFatal(int signal, siginfo_t* info, void*) {
     char line[160];
-    const int length = std::snprintf(line, sizeof(line), "[ProsperoEden diag] +%ldms FATAL signal %d at %p (before the crash handler)\n",
+    const int length = std::snprintf(line, sizeof(line), "[Eglantine diag] +%ldms FATAL signal %d at %p (before the crash handler)\n",
                                      Milliseconds(), signal, info ? info->si_addr : nullptr);
     Emit(line);
     if (length > 0) WriteAll(File(), line, static_cast<size_t>(length));
@@ -84,7 +84,7 @@ inline void Line(const char* format, ...) {
     std::vsnprintf(body, sizeof(body), format, arguments);
     va_end(arguments);
     char line[800];
-    const int length = std::snprintf(line, sizeof(line), "[ProsperoEden diag] +%ldms %s\n", detail::Milliseconds(), body);
+    const int length = std::snprintf(line, sizeof(line), "[Eglantine diag] +%ldms %s\n", detail::Milliseconds(), body);
     if (length <= 0) return;
     detail::Emit(line);
     detail::Memory().append(line, static_cast<size_t>(length) < sizeof(line) ? static_cast<size_t>(length) : sizeof(line) - 1);

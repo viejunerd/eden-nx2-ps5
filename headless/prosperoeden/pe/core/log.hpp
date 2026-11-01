@@ -17,7 +17,7 @@ inline void log(const char *format, ...)
 {
     std::va_list arguments;
     va_start(arguments, format);
-    std::fputs("[ProsperoEden] launcher: ", stderr);
+    std::fputs("[Eglantine] launcher: ", stderr);
     std::vfprintf(stderr, format, arguments);
     std::fputc('\n', stderr);
     va_end(arguments);

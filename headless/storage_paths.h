@@ -2,7 +2,7 @@
 // Where ProsperoEden keeps things. With filesystem access (elevation/elevation.hpp, requested
 // first thing in main) the app uses real console paths:
 //   app folder     the install location, normally /data/homebrew/PPSA99008
-//   data           /data/prosperoeden: config/ (prosperoeden.json), logs/, covers/, user/,
+//   data           /data/eglantine: config/ (eglantine.json), logs/, covers/, user/,
 //                  wallpapers/ (docs/WALLPAPERS.md)
 // Without it (no resident service or local elfldr, or the request failed) the app has no data:
 // it reads the app folder as /app0, keeps only its logs in /download0, and the launcher says
@@ -16,8 +16,8 @@
 #include <sys/stat.h>
 
 namespace Eden {
-inline constexpr const char* kDataDir = "/data/prosperoeden";
-inline constexpr const char* kDefaultAssetsDir = "/data/prosperoeden";
+inline constexpr const char* kDataDir = "/data/eglantine";
+inline constexpr const char* kDefaultAssetsDir = "/data/eglantine";
 inline constexpr const char* kInstallDir = "/data/homebrew/PPSA99008";
 
 // Filesystem access requested at startup: -1 not requested, 0 granted, otherwise the

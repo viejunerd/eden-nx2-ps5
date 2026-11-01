@@ -109,7 +109,7 @@ std::string ReadTitle(const FileSys::VirtualDir& romfs) {
         name.back() = '\0';
         if (!name.front()) continue;
         if (Eden::UsableName(name.data())) return Eden::PlainName(name.data());
-        std::fprintf(stderr, "[ProsperoEden] library: name %zu of a game is not text; trying its next one\n", language);
+        std::fprintf(stderr, "[Eglantine] library: name %zu of a game is not text; trying its next one\n", language);
     }
     return {};
 }
@@ -290,7 +290,7 @@ uint32_t eden_game_supported_languages(const char* rom_path, const char* keys_di
         if (!romfs) return 0;
         return GameLanguages()[rom_path] = ReadLanguages(romfs, packed_update);
     } catch (const std::exception& error) {
-        std::fprintf(stderr, "[ProsperoEden] languages: %s\n", error.what());
+        std::fprintf(stderr, "[Eglantine] languages: %s\n", error.what());
         return 0;
     }
 }
@@ -384,7 +384,7 @@ void eden_scan_addons(const char* updates_dir, const char* roms_dir, const char*
         for (const auto& entry : provider.ListEntriesFilter(FileSys::TitleType::AOC, std::nullopt, std::nullopt))
             if (dlc.insert(entry.title_id).second) ++scanned[FileSys::GetBaseTitleID(entry.title_id)].dlc;
     } catch (const std::exception& error) {
-        std::fprintf(stderr, "[ProsperoEden] updates: %s\n", error.what());
+        std::fprintf(stderr, "[Eglantine] updates: %s\n", error.what());
         scanned.clear();
     }
 }
@@ -433,7 +433,7 @@ int eden_game_addon_files(uint64_t title_id, const char* updates_dir, const char
         if (game_dir) count += FindAddOnFiles(vfs.OpenDirectory(game_dir, FileSys::OpenMode::Read), base, found, user, 0);
         return count;
     } catch (const std::exception& error) {
-        std::fprintf(stderr, "[ProsperoEden] updates: %s\n", error.what());
+        std::fprintf(stderr, "[Eglantine] updates: %s\n", error.what());
         return 0;
     }
 }
@@ -497,7 +497,7 @@ std::string EdenUserFolder(const std::filesystem::path& saves, std::string& erro
         if (name.size() == 32 && name != std::string(32, '0')) users.push_back(name);
     }
     if (users.size() == 1) return users.front();
-    error = "start any game once first, so ProsperoEden creates its user";
+    error = "start any game once first, so Eglantine creates its user";
     return {};
 }
 } // namespace

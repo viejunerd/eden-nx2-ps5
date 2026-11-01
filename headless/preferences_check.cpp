@@ -34,7 +34,7 @@ int main() {
     CheckGameNames();
     char directory[] = "/tmp/eden-settings-XXXXXX";
     assert(mkdtemp(directory));
-    const std::string file = std::string(directory) + "/prosperoeden.json";
+    const std::string file = std::string(directory) + "/eglantine.json";
 
     // Defaults with no file.
     assert(Eden::LoadPreferences(file).volume == 100);
@@ -643,7 +643,7 @@ int main() {
     // Migration from the text files of earlier versions, once, leaving them in place.
     char legacy[] = "/tmp/eden-legacy-XXXXXX";
     assert(mkdtemp(legacy));
-    const std::string folder = legacy, migrated = folder + "/prosperoeden.json";
+    const std::string folder = legacy, migrated = folder + "/eglantine.json";
     { std::ofstream(folder + "/settings.txt") << "2 0 70 0 1 0\n"; }
     { std::ofstream(folder + "/last-game.txt") << "Demo Racer [0100000000010000].nsp"; }
     { std::ofstream(folder + "/recent-games.txt") << "Demo Racer [0100000000010000].nsp\nTest Platformer.nsp\n"; }

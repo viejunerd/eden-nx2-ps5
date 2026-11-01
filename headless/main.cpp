@@ -154,7 +154,7 @@ public:
 
 #ifdef PS5_NATIVE
 // First start with filesystem access: copy what the sandbox kept (settings, covers, Eden's saves
-// and caches) into /data/prosperoeden. Only folders that do not exist yet are filled, and the
+// and caches) into /data/eglantine. Only folders that do not exist yet are filled, and the
 // sandbox copy stays, so an older ProsperoEden still finds its data.
 // dev-settings jit_table_check=on: the JIT's direct page table (headless/jit-page-table.cmake) must
 // hold, for every page, the pointer of Eden's entry, or 0 where the entry is marked or empty. A
@@ -213,10 +213,10 @@ static void MigrateSandboxData() {
 
 #ifdef PS5_NATIVE
 // Game files an early version kept inside the app's folder (assets/ with keys, firmware and
-// roms) move to /data/prosperoeden, where replacing the app cannot take them away: an update
+// roms) move to /data/eglantine, where replacing the app cannot take them away: an update
 // that replaces the whole folder left the app without its keys and games. Both are on /data, so
 // it is a rename of each folder. Nothing moves unless all of it can: a folder chosen in Settings,
-// or anything already in /data/prosperoeden, leaves everything where it is.
+// or anything already in /data/eglantine, leaves everything where it is.
 static void MoveGameFilesOutOfTheApp() {
     const std::string from = std::string{Eden::kInstallDir} + "/assets", to = Eden::kDefaultAssetsDir;
     const std::string saved = Eden::LoadSavedAssetsDir();
@@ -436,7 +436,7 @@ int main(int argc, char** argv) {
             const std::string note = Eden::LogFile("stop-limit.txt");
             if (std::remove(note.c_str()) == 0)
                 Eden::Report("exit", "The last game did not stop (or finish loading) within ten seconds of being "
-                                     "asked to, so ProsperoEden started again");
+                                     "asked to, so Eglantine started again");
             Eden::StopLimit::Start(note);
         }
         report = std::fopen(Eden::LogFile("result.tsv").c_str(), "w");
