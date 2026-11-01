@@ -245,7 +245,7 @@ PY2
 find_eden_dir() {
   # El Eden fijado se descomprime dentro de .deps/. Lo reconocemos por su estructura.
   local d
-  d="$(find .deps -maxdepth 4 -type d -path '*/src/video_core' 2>/dev/null | head -n1 || true)"
+  d="$(find .deps -maxdepth 4 -type d -path '*/src/video_core' -not -path '*.orig*' 2>/dev/null | head -n1 || true)"
   [[ -n "$d" ]] || die "No encuentro el Eden de ProsperoEden dentro de .deps/. Mira 'make deps-status'."
   dirname "$(dirname "$d")"
 }
@@ -370,6 +370,19 @@ swap_and_build() {
     log "Instrumentando eden-nx2 con logs NX2DIAG (DIAG=0 los quita)"
     python3 -I "$SCRIPT_DIR/diag-nx2.py" "$eden_dir" || warn "diag-nx2.py falló; se compila sin diagnóstico."
   fi
+  # ProsperoEden NO compila el directorio de .deps: tools/prepare-build.sh desempaqueta
+  # .deps/eden-<sha>.tar.gz en <caché>/ps5-eden-headless.*/source y compila de ahí. Hay que
+  # reempaquetar el tarball con nuestro árbol e invalidar esa copia, o se compila el Eden de serie.
+  local arc scratch
+  arc="$(ls .deps/eden-*.tar.gz 2>/dev/null | head -n1)"
+  [[ -n "$arc" ]] || die "No encuentro .deps/eden-*.tar.gz (el que desempaqueta tools/prepare-build.sh)."
+  [[ -f "$arc.orig" ]] || cp -a "$arc" "$arc.orig"
+  log "Reempaquetando $arc con el código del emulador ($(basename "$eden_dir"))"
+  tar -czf "$arc" -C "$(dirname "$eden_dir")" "$(basename "$eden_dir")"
+  scratch="$(cat .local/headless-cache 2>/dev/null || true)"
+  if [[ -n "$scratch" && -d "$scratch/source" ]]; then
+    rm -f "$scratch/source/.unpacked-from"   # prepare-build.sh lo vuelve a desempaquetar (conserva .cache)
+  fi
   # ProsperoEden no toca lo que ya existe en .deps, así que la sustitución se respeta.
   make deps-status || true
 
@@ -378,7 +391,7 @@ swap_and_build() {
     # Autotests x86 de ProsperoEden (JIT, afinidad, TSC...) que corren en el host tras compilar.
     # Bajo Rosetta/Docker en Mac fallan por la emulación y no tocan el binario de la PS5.
     warn "SKIP_HOST_CHECKS=1: se omiten los check-*.py del host en tools/build-headless-native.sh"
-    sed -i -E 's|^(python3 -B "\$root/tools/check-[a-z-]+\.py")|true # \1|' tools/build-headless-native.sh
+    sed -i -E 's|^( *)(python3 -B "\$root/tools/check-[a-z-]+\.py")|\1true # \2|' tools/build-headless-native.sh
   fi
   log "Compilando la app (build de release; la primera vez Eden tarda bastante)"
   make package JOBS="$JOBS"
