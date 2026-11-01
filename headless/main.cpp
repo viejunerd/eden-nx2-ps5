@@ -773,6 +773,24 @@ int main(int argc, char** argv) {
 #ifndef PS5_NATIVE
         Common::Log::Initialize();
 #endif
+#ifdef PS5_NATIVE
+        // Eglantine: the emulator's EDEN_NX2_* debug switches (IPC/SVC traces, vsync rate, idle
+        // spin...) are environment variables its code reads once. This file sets them without a
+        // rebuild: /data/prosperoeden/eglantine-env.txt, KEY=VALUE per line, # for comments. And a
+        // hung run keeps its whole log: Eden's file backend flushes only on errors otherwise.
+        {
+            std::ifstream env_file(std::string{Eden::kDataDir} + "/eglantine-env.txt");
+            std::string env_line;
+            while (std::getline(env_file, env_line)) {
+                while (!env_line.empty() && (env_line.back() == '\r' || env_line.back() == ' ')) env_line.pop_back();
+                const std::size_t eq = env_line.find('=');
+                if (env_line.empty() || env_line[0] == '#' || eq == std::string::npos || eq == 0) continue;
+                setenv(env_line.substr(0, eq).c_str(), env_line.substr(eq + 1).c_str(), 1);
+                std::printf("[eglantine-env] %s\n", env_line.c_str());
+            }
+            Settings::values.log_flush_line.SetValue(true);
+        }
+#endif
         if (game) {
             Common::Log::Filter filter;
             filter.SetClassLevel(Common::Log::Class::Service_FS, Common::Log::Level::Info);
