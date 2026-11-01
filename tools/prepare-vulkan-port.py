@@ -1067,7 +1067,7 @@ gc_begin = download_source.index('void TextureCache<P>::RunGarbageCollector() {'
 gc_end = download_source.index('\ntemplate <class P>', gc_begin)
 gc_original = download_source[gc_begin:gc_end]
 gc = gc_original
-gc_setup = '''    const auto ReclaimedBytes = [&](const ImageBase& image) {
+gc_setup = '''    const auto ReclaimedBytes = [&](const Image& image) {
         u64 bytes = 0;
 ''' + reclaimed_bytes + '''        return bytes;
     };
