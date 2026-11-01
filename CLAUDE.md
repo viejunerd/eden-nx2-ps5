@@ -24,6 +24,21 @@ The emulator and PS5 code now live as real commits on two branches **of this sam
 
 Local clones for editing and resolving conflicts: `~/Downloads/ps5-src/ProsperoEden` (branch `nx2-ps5`) and `~/Downloads/ps5-src/eden-nx2` (branch `ps5`). Publish with `git push <url-with-token> nx2-ps5:prospero-nx2-ps5` / `ps5:eden-nx2-ps5` (token only in the URL, never `-u`, check `.git/config` after). `main` holds scripts and notebook. Colab cell 3 has `USE_BRANCHES=True`, which sets `PROSPERO_REPO/NX2_REPO=<this repo>`, the two refs, `MODE=head`, `PATCHES=0`, `DIAG=0`. With `USE_BRANCHES=False` the old way (upstream repos + `patches/` + `diag-nx2.py`) still works. Not compiled with the PS5 toolchain after this change.
 
+## Eglantine build (branch `eglantine`, since 2026-11-01)
+
+Second product, separate from the eden-nx2 one above: **Eglantine** (github.com/Djihads80/Eglantine, branch `nx2`, GPL-3, a Switch 2 emulator derived from Eden/Yuzu/Sudachi that diverged from Takoroka's eden-nx2) with the ProsperoEden frontend on top, rebranded. It builds the same way (ProsperoEden's Eden directory is swapped for the emulator tree, then `make package`).
+
+| Piece | Where |
+|---|---|
+| Emulator | cloned fresh at its latest `nx2` commit on every run (`--depth 1`, no fork) |
+| Frontend | branch `eglantine-frontend` of this repo: Swordpdf/ProsperoEden `a26ba78` + folder-games commit + rebrand commit |
+| Rebrand | `eglantine/brand.py <ProsperoEden checkout>`: strings in quotes, `/data/eglantine`, `eglantine.json`, `titleName`; leaves identifiers, URLs and BlackBearReloaded credits. Idempotent: re-run after merging a newer ProsperoEden, commit the result |
+| Build | `scripts/build-eglantine.sh` (settings) -> `scripts/build-eden-nx2-ps5.sh` (shared logic) |
+| Notebook | `colab/eglantine.ipynb`, Drive folder `eglantine-ps5/`, work dir `/content/work-eglantine`, files `/content/eglantine.*` |
+| Output | `PPSA99308`, name "Eglantine", content id `UP9000-PPSA99308_00-EGLANTINEPS50001`. Data on the console: `/data/eglantine/{keys,firmware,roms,...}` (NOT shared with ProsperoEden) |
+
+Checked before building (static, on this Mac): same source layout as eden-nx2, and 158 of ProsperoEden's `old` anchors present in Eglantine like in eden-nx2 (`/tmp` script `anchors.py`; it flagged 126 broken against an unrelated tree, so it does detect). Not checked: anchors built from variables, PS5 compile, anything on a console. `DIAG=1` (default) still adds NX2DIAG logging via `scripts/diag-nx2.py`. Icon and background art in `sce_sys/` are still ProsperoEden's. The in-app updater cannot find a release for the new Title ID (`update check: result=unknown`), but do not use it.
+
 The extracted scripts passed `bash -n`. The new notebook has **not been run in Colab yet**. The original notebook is still `eden_nx2_ps5_final.py`.
 
 ## Goal

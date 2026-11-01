@@ -28,6 +28,7 @@
 #   APP_NAME       nombre en el menú de la PS5 (por defecto "Eden NX2")
 #   PATCHES        1 (defecto): aplica patches/*.patch a ProsperoEden; 0 si ya van en su rama
 #   DIAG           1 (defecto): añade logs NX2DIAG a eden-nx2 (diag-nx2.py); 0 si ya van en su rama
+#   CONTENT_ID_SUFFIX  16 caracteres finales del Content ID (defecto EDENNX2PS5000001)
 #   SKIP_APT=1     no instalar paquetes con apt
 
 set -euo pipefail
@@ -124,7 +125,7 @@ fetch_prospero() {
     local ok=0 repo
     for repo in $PROSPERO_REPOS; do
       log "Clonando ProsperoEden ($PROSPERO_REF) desde $repo"
-      if GIT_TERMINAL_PROMPT=0 git clone --branch "$PROSPERO_REF" "$repo" ProsperoEden; then
+      if GIT_TERMINAL_PROMPT=0 git clone --single-branch --branch "$PROSPERO_REF" "$repo" ProsperoEden; then
         ok=1; break
       fi
       warn "No se pudo clonar $repo; pruebo el siguiente."
@@ -273,6 +274,22 @@ PY
 # ---------------------------------------------------------------- 4. preparar eden-nx2
 prepare_nx2() {
   local pinned="$1" src="$WORKDIR/eden-nx2" ref b n when best="" bestn=0
+  # Rama concreta + MODE=head (Eglantine): solo el último commit de esa rama, sin historial
+  # ni Eden oficial. Cada ejecución trae lo más nuevo y lo deja como árbol a compilar.
+  if [[ "$MODE" == head && "$NX2_REF" != auto ]]; then
+    if [[ -d "$src/.git" ]]; then
+      git -C "$src" remote set-url origin "$NX2_REPO"
+      log "Actualizando $NX2_REPO ($NX2_REF) al último commit"
+      GIT_TERMINAL_PROMPT=0 git -C "$src" fetch -q --depth 1 origin "$NX2_REF"
+      git -C "$src" -c advice.detachedHead=false checkout -q -B ps5-nx2 FETCH_HEAD
+    else
+      log "Clonando $NX2_REPO ($NX2_REF, solo el último commit)"
+      GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 --branch "$NX2_REF" "$NX2_REPO" "$src"
+      git -C "$src" checkout -q -B ps5-nx2
+    fi
+    log "Código del emulador: $(git -C "$src" log -1 --format='%h %cs %s')"
+    return
+  fi
   if [[ ! -d "$src/.git" ]]; then
     log "Clonando eden-nx2 (~220 MB, historial completo para poder rebasar)"
     GIT_TERMINAL_PROMPT=0 git clone "$NX2_REPO" "$src"
@@ -362,13 +379,13 @@ swap_and_build() {
     log "Creando build/release/$APP_TITLE con Title ID $APP_TITLE y nombre \"$APP_NAME\""
     rm -rf "build/release/$APP_TITLE"
     cp -a "$rel" "build/release/$APP_TITLE"
-    python3 -I - "build/release/$APP_TITLE/sce_sys/param.json" "$APP_TITLE" "$APP_NAME" <<'PY3'
+    python3 -I - "build/release/$APP_TITLE/sce_sys/param.json" "$APP_TITLE" "$APP_NAME" "${CONTENT_ID_SUFFIX:-EDENNX2PS5000001}" <<'PY3'
 import json, sys
-path, tid, name = sys.argv[1:4]
+path, tid, name, suffix = sys.argv[1:5]
 p = json.load(open(path))
 p["titleId"] = tid
 p["conceptId"] = tid[4:]
-p["contentId"] = f"UP9000-{tid}_00-EDENNX2PS5000001"[:36]
+p["contentId"] = f"UP9000-{tid}_00-{suffix}"[:36]
 for k, v in p.get("localizedParameters", {}).items():
     if isinstance(v, dict) and "titleName" in v:
         v["titleName"] = name
@@ -377,7 +394,7 @@ print("  titleId", p["titleId"], "| contentId", p["contentId"], "| nombre", name
 PY3
     OUT="build/release/$APP_TITLE"
     warn "Con un Title ID distinto, no uses la opción de actualizar desde el menú de la app:"
-    warn "el actualizador de ProsperoEden instala en PPSA99008. Las keys/juegos se leen de /data/prosperoeden (compartido)."
+    warn "el actualizador de ProsperoEden instala en PPSA99008. Las keys/juegos se leen de ${DATA_DIR:-/data/prosperoeden}."
   fi
 
   if [[ -n "${PS5_HOST:-}" ]]; then
