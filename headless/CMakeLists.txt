@@ -46,7 +46,10 @@ file(READ "${PROJECT_SOURCE_DIR}/src/video_core/texture_cache/util.h" texture_ut
 string(REPLACE "#include <boost/container/small_vector.hpp>"
     "#include <boost/container/small_vector.hpp>\n#include <boost/version.hpp>"
     texture_util_derived "${texture_util_header}")
-if(texture_util_derived STREQUAL texture_util_header OR NOT texture_util_header MATCHES "FixSmallVectorADL")
+if(NOT texture_util_header MATCHES "FixSmallVectorADL")
+    # A newer Eden (Eglantine, eden-nx2) no longer has the helper: there is no copy to avoid.
+    set(texture_util_derived "${texture_util_header}")
+elseif(texture_util_derived STREQUAL texture_util_header)
     message(FATAL_ERROR "Pinned texture cache util.h layout changed")
 endif()
 write_derived("${PORT_BUILD_DIR}/small-vector/video_core/texture_cache/util.h" "${texture_util_derived}")
