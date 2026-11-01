@@ -436,7 +436,7 @@ int main(int argc, char** argv) {
             const std::string note = Eden::LogFile("stop-limit.txt");
             if (std::remove(note.c_str()) == 0)
                 Eden::Report("exit", "The last game did not stop (or finish loading) within ten seconds of being "
-                                     "asked to, so ProsperoEden started again");
+                                     "asked to, so Eglantine started again");
             Eden::StopLimit::Start(note);
         }
         report = std::fopen(Eden::LogFile("result.tsv").c_str(), "w");

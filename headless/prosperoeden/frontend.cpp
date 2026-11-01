@@ -298,7 +298,7 @@ std::string RunApp(const std::string& launch_error, bool first_start, Eden::Mult
                             stop = true;
                         });
                         Eden::TextRequest request;
-                        request.title = u"ProsperoEden";
+                        request.title = u"Eglantine";
                         request.initial = u"Eden";
                         request.max_length = 16;
                         const Eden::TextAnswer answer = Eden::AskSystemKeyboard(request, stop);
