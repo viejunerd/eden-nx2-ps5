@@ -20,11 +20,11 @@
 
 #include "runtime_loading.glsl"
 
-const vec3 kAccent = vec3(0.663, 0.859, 0.388);
-const vec3 kPale = vec3(0.875, 0.910, 0.651);
-const vec3 kDeep = vec3(0.141, 0.365, 0.290);
-const vec3 kBase = vec3(0.024, 0.035, 0.039);
-const vec3 kTitle = vec3(1.0, 0.988, 0.937);
+const vec3 kAccent = vec3(0.949, 0.631, 0.769);
+const vec3 kPale = vec3(1.000, 0.839, 0.902);
+const vec3 kDeep = vec3(0.420, 0.129, 0.259);
+const vec3 kBase = vec3(0.047, 0.027, 0.035);
+const vec3 kTitle = vec3(1.0, 0.965, 0.978);
 const float kArtGap = 2.0;
 const float kArtBlur = 64.0;
 // Where each step begins in the progress, and after the last where that one ends (hud.h,
