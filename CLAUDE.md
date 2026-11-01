@@ -13,6 +13,17 @@ The build keeps running in Google Colab, but the logic lives in this repo (not i
 
 Loop: edit `scripts/` here, push to the remote, then in Colab re-run cell 1 (it does `git pull`) and the build cells. Changes to ProsperoEden or eden-nx2 themselves go in our own forks, or as patches applied by `build-eden-nx2-ps5.sh` (`PROSPERO_REPO` / `NX2_REPO` point the build at them).
 
+## Source branches (since 2026-11-01)
+
+The emulator and PS5 code now live as real commits on two branches **of this same GitHub repo** (unrelated histories, no forks):
+
+| Branch | Base | Our commits |
+|---|---|---|
+| `prospero-nx2-ps5` | Swordpdf/ProsperoEden `a26ba78` | folder games in the library (was `patches/folder-games-a26ba78.patch`) |
+| `eden-nx2-ps5` | Takoroka/eden-nx2 `50fa86b` (branch `eden-nx2`) | NX2DIAG logging (was `scripts/diag-nx2.py`) |
+
+Local clones for editing and resolving conflicts: `~/Downloads/ps5-src/ProsperoEden` (branch `nx2-ps5`) and `~/Downloads/ps5-src/eden-nx2` (branch `ps5`). Publish with `git push <url-with-token> nx2-ps5:prospero-nx2-ps5` / `ps5:eden-nx2-ps5` (token only in the URL, never `-u`, check `.git/config` after). `main` holds scripts and notebook. Colab cell 3 has `USE_BRANCHES=True`, which sets `PROSPERO_REPO/NX2_REPO=<this repo>`, the two refs, `MODE=head`, `PATCHES=0`, `DIAG=0`. With `USE_BRANCHES=False` the old way (upstream repos + `patches/` + `diag-nx2.py`) still works. Not compiled with the PS5 toolchain after this change.
+
 The extracted scripts passed `bash -n`. The new notebook has **not been run in Colab yet**. The original notebook is still `eden_nx2_ps5_final.py`.
 
 ## Goal

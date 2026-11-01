@@ -26,6 +26,8 @@
 #   JOBS           trabajos de compilación en paralelo (defecto: todos los núcleos)
 #   APP_TITLE      Title ID de PS5 de la carpeta final (por defecto PPSA99208)
 #   APP_NAME       nombre en el menú de la PS5 (por defecto "Eden NX2")
+#   PATCHES        1 (defecto): aplica patches/*.patch a ProsperoEden; 0 si ya van en su rama
+#   DIAG           1 (defecto): añade logs NX2DIAG a eden-nx2 (diag-nx2.py); 0 si ya van en su rama
 #   SKIP_APT=1     no instalar paquetes con apt
 
 set -euo pipefail
@@ -69,14 +71,37 @@ install_host_tools() {
 # Juego/updates/exefs/main) además de .nsp/.xci. Hay uno por versión de ProsperoEden:
 #   e9f30ae = mrggbond/prosperoeden main, a26ba78 = Swordpdf/ProsperoEden main (01.005.000).
 # Se deshace lo aplicado en una ejecución anterior y se aplica el primero que encaje.
-apply_prospero_patches() {
-  local dir patch applied=""
-  dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" \
-    || { warn "No encuentro la carpeta patches/; ProsperoEden se compila sin parches propios."; return 0; }
+# Deshace los parches de patches/ que hubiera aplicados (una ejecución anterior) en el cwd.
+revert_prospero_patches() {
+  local dir patch
+  dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" || return 0
   for patch in "$dir"/*.patch; do
     [[ -f "$patch" ]] || continue
     if git apply -R --check "$patch" 2>/dev/null; then git apply -R "$patch"; fi
   done
+}
+
+# Deja el cwd (ProsperoEden) como el commit al que apunta HEAD: descarta lo modificado (parches,
+# deps.json) y borra los archivos nuevos que crean los parches. No toca .deps ni build/.
+clean_prospero_tree() {
+  local dir patch f
+  git reset -q --hard
+  dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" || return 0
+  for patch in "$dir"/*.patch; do
+    [[ -f "$patch" ]] || continue
+    while read -r f; do rm -f -- "$f"; done < <(awk '/^--- \/dev\/null/{getline; sub(/^\+\+\+ b\//,""); print}' "$patch")
+  done
+}
+
+apply_prospero_patches() {
+  local dir patch applied=""
+  if [[ "${PATCHES:-1}" != 1 ]]; then
+    log "PATCHES=0: ProsperoEden se usa tal cual ($(git rev-parse --short HEAD)); los cambios van en su rama"
+    return 0
+  fi
+  dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" \
+    || { warn "No encuentro la carpeta patches/; ProsperoEden se compila sin parches propios."; return 0; }
+  revert_prospero_patches
   for patch in "$dir"/*.patch; do
     [[ -f "$patch" ]] || continue
     if git apply --check "$patch" 2>/dev/null; then
@@ -111,10 +136,12 @@ fetch_prospero() {
       || die "El repo clonado no trae Makefile/headless (solo releases). Usa otro con PROSPERO_REPO=<url>."
   else
     log "ProsperoEden ya clonado; actualizando"
-    git -C ProsperoEden checkout -q -- tools/deps.json 2>/dev/null || true
+    # Primero se quitan nuestros parches (si los hay) y los cambios de deps.json, para poder
+    # cambiar de repo o de rama sin conflictos con archivos sin seguimiento.
+    ( cd ProsperoEden && clean_prospero_tree )
+    git -C ProsperoEden remote set-url origin "${PROSPERO_REPOS%% *}"
     git -C ProsperoEden fetch origin "$PROSPERO_REF"
-    git -C ProsperoEden checkout -q "$PROSPERO_REF"
-    git -C ProsperoEden pull --ff-only || warn "No se pudo hacer fast-forward; sigo con lo que hay."
+    git -C ProsperoEden checkout -q -B "$PROSPERO_REF" FETCH_HEAD
   fi
   cd ProsperoEden
   apply_prospero_patches
@@ -251,6 +278,7 @@ prepare_nx2() {
     GIT_TERMINAL_PROMPT=0 git clone "$NX2_REPO" "$src"
   fi
   cd "$src"
+  git remote set-url origin "$NX2_REPO"
   log "Descargando todas las ramas de eden-nx2 y de Eden oficial"
   git fetch -q origin '+refs/heads/*:refs/remotes/origin/*' --tags
   git remote get-url upstream >/dev/null 2>&1 || git remote add upstream "$UPSTREAM_REPO"
