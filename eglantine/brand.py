@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Rebrand the ProsperoEden frontend as Eglantine: what the user sees, and where data lives.
+"""Rebrand the ProsperoEden frontend as Eglantine, visually only.
 
     brand.py <ProsperoEden checkout> [--dry-run]
 
-Changes (idempotent, so it can be re-run after merging a newer ProsperoEden):
-  * the word ProsperoEden inside double-quoted string literals of the C++ sources, the .po/.pot
-    catalogs (msgids and translations alike, so lookups keep matching) and tools/launcher/strings.py;
-  * /data/prosperoeden -> /data/eglantine and prosperoeden.json -> eglantine.json;
-  * sce_sys/param.json titleName.
-Left alone on purpose: identifiers and file names (SelectProsperoEdenGame, headless/prosperoeden/),
-URLs, and any string that credits BlackBearReloaded, so the attribution stays true.
+Changes the word ProsperoEden inside double-quoted string literals of the C++ sources, the
+.po/.pot catalogs (msgids and translations alike, so lookups keep matching) and
+tools/launcher/strings.py, plus sce_sys/param.json titleName. Idempotent, so it can be re-run
+after merging a newer ProsperoEden.
+
+Deliberately NOT touched, so Eglantine and ProsperoEden can sit side by side on one console and
+share /data/prosperoeden (keys, firmware, roms, config):
+  * paths and file names (/data/prosperoeden, prosperoeden.json, headless/prosperoeden/);
+  * identifiers (SelectProsperoEdenGame) and URLs;
+  * log lines and the crash report header ("[ProsperoEden] ...", fprintf(stderr, ...), Report(...));
+  * the HTTP user agent and the RomM client name;
+  * anything that credits BlackBearReloaded, so the attribution stays true.
 """
 import re
 import sys
@@ -18,74 +23,57 @@ from pathlib import Path
 root = Path(sys.argv[1])
 dry = "--dry-run" in sys.argv
 
-NAME_OLD, NAME_NEW = "ProsperoEden", "Eglantine"
-PATH_SWAPS = [("/data/prosperoeden", "/data/eglantine"), ("prosperoeden.json", "eglantine.json")]
-KEEP = ("github.com", "http", "blackbear", "mrggbond", "swordpdf")
+NAME_NEW = "Eglantine"
+KEEP_LITERAL = ("github.com", "http", "blackbear", "mrggbond", "swordpdf", "/data/", ".json", "crash report")
+KEEP_LINE = ("fprintf(stderr", "DebugOutText", "Report(", "CURLOPT_USERAGENT", '"client"', "(PS5)", "snprintf(line", "fputs(")
 LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"')
 WORD = re.compile(r"\bProsperoEden\b")
-
 SOURCE_EXT = {".cpp", ".h", ".hpp", ".c", ".po", ".pot"}
-PATH_EXT = SOURCE_EXT | {".inc", ".py", ".sh", ".cmake", ".txt", ".json"}
 
 
 def rename_literal(m):
     lit = m.group(0)
-    if any(k in lit.lower() for k in KEEP):
+    low = lit.lower()
+    if lit.startswith('"[') or any(k in low for k in KEEP_LITERAL):
         return lit
     return WORD.sub(NAME_NEW, lit)
 
 
-def files_under(*parts):
-    for p in parts:
-        base = root / p
-        if base.is_file():
-            yield base
-        elif base.is_dir():
-            yield from (f for f in base.rglob("*") if f.is_file())
+def rename_line(line):
+    if any(k in line for k in KEEP_LINE):
+        return line
+    return LITERAL.sub(rename_literal, line)
 
 
-changed = {}
+changed = []
 
 
-def write(path, text, original, kind):
-    if text != original:
-        changed.setdefault(kind, []).append(str(path.relative_to(root)))
-        if not dry:
-            path.write_text(text)
-
-
-# 1. Display strings
-for f in list(files_under("headless")) + [root / "tools/launcher/strings.py"]:
-    if f.suffix not in SOURCE_EXT and f.name != "strings.py":
-        continue
+def process(path):
     try:
-        text = f.read_text()
+        text = path.read_text()
     except (UnicodeDecodeError, FileNotFoundError):
-        continue
-    write(f, LITERAL.sub(rename_literal, text), text, "names")
+        return
+    new = "".join(rename_line(l) for l in text.splitlines(keepends=True))
+    if new != text:
+        changed.append(str(path.relative_to(root)))
+        if not dry:
+            path.write_text(new)
 
-# 2. Data folder and config file name
-for f in list(files_under("headless", "tools", "Makefile")):
-    if f.suffix not in PATH_EXT and f.name != "Makefile":
-        continue
-    try:
-        text = f.read_text()
-    except UnicodeDecodeError:
-        continue
-    new = text
-    for old, repl in PATH_SWAPS:
-        new = new.replace(old, repl)
-    write(f, new, text, "paths")
 
-# 3. Package metadata
+for f in (root / "headless").rglob("*"):
+    if f.is_file() and f.suffix in SOURCE_EXT:
+        process(f)
+process(root / "tools/launcher/strings.py")
+
 param = root / "sce_sys/param.json"
 if param.exists():
     text = param.read_text()
-    write(param, re.sub(r'("titleName"\s*:\s*")ProsperoEden(")', rf"\g<1>{NAME_NEW}\g<2>", text), text, "param")
+    new = re.sub(r'("titleName"\s*:\s*")ProsperoEden(")', rf"\g<1>{NAME_NEW}\g<2>", text)
+    if new != text:
+        changed.append("sce_sys/param.json")
+        if not dry:
+            param.write_text(new)
 
-for kind, names in changed.items():
-    print(f"{kind}: {len(names)} files")
-if not changed:
-    print("nothing to change (already branded)")
+print(f"changed: {len(changed)} files" if changed else "nothing to change (already branded)")
 if dry:
     print("(dry run, nothing written)")
