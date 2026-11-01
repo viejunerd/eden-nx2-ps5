@@ -1293,11 +1293,14 @@ configure_phases = [
      '    buffer_cache.SetUniformBuffersState(enabled_uniform_buffer_masks, &uniform_buffer_sizes);\n'
      '    // Sampler and image tables synced, uniform-buffer state set.\n'
      '    ::Eden::Performance::Mark(::Eden::Performance::cfg_sync, since);'),
-    ('    texture_cache.FillImageViews(std::span(views.data(), views.size()), false, Spec::has_images);',
-     '    texture_cache.FillImageViews(std::span(views.data(), views.size()), false, Spec::has_images);\n'
+    # Eglantine wraps the call in a profiling scope: the marks go after the closing brace.
+    ('        texture_cache.FillImageViews(std::span(views.data(), views.size()), false,\n'
+     '                                     Spec::has_images);\n    }\n',
+     '        texture_cache.FillImageViews(std::span(views.data(), views.size()), false,\n'
+     '                                     Spec::has_images);\n    }\n'
      '    // Every texture handle read out of guest memory, every sampler and view filled.\n'
      '    ::Eden::Performance::Mark(::Eden::Performance::cfg_read, since);\n'
-     '    long long since_bind = ::Eden::Performance::MarkStart();'),
+     '    long long since_bind = ::Eden::Performance::MarkStart();\n'),
     ('    if (regs.transform_feedback_enabled != 0) {',
      '    // The texture-buffer loop over every enabled stage.\n'
      '    ::Eden::Performance::Mark(::Eden::Performance::bind_tbo, since_bind);\n'
