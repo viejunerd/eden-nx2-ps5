@@ -5,7 +5,7 @@
 
 Changes the word ProsperoEden inside double-quoted string literals of the C++ sources, the
 .po/.pot catalogs (msgids and translations alike, so lookups keep matching) and
-tools/launcher/strings.py, plus sce_sys/param.json titleName. Idempotent, so it can be re-run
+tools/launcher/strings.py. Idempotent, so it can be re-run
 after merging a newer ProsperoEden.
 
 Deliberately NOT touched, so Eglantine and ProsperoEden can sit side by side on one console and
@@ -65,14 +65,8 @@ for f in (root / "headless").rglob("*"):
         process(f)
 process(root / "tools/launcher/strings.py")
 
-param = root / "sce_sys/param.json"
-if param.exists():
-    text = param.read_text()
-    new = re.sub(r'("titleName"\s*:\s*")ProsperoEden(")', rf"\g<1>{NAME_NEW}\g<2>", text)
-    if new != text:
-        changed.append("sce_sys/param.json")
-        if not dry:
-            param.write_text(new)
+# sce_sys/param.json is left alone: ProsperoEden's packaging asserts titleName == "ProsperoEden";
+# the build script writes the app name ("Eglantine") into the copied param.json afterwards.
 
 print(f"changed: {len(changed)} files" if changed else "nothing to change (already branded)")
 if dry:

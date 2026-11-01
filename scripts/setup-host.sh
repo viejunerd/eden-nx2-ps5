@@ -6,7 +6,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get -qq update
 apt-get -qq install -y lsb-release wget curl gnupg software-properties-common \
   ccache make nasm rsync git glslang-tools spirv-tools bison flex unzip zip zstd \
-  xxd file patch pkg-config build-essential python3-venv >/dev/null
+  xxd file patch pkg-config build-essential python3-venv python3-pip >/dev/null
 echo "Sistema: $(lsb_release -ds)"
 
 # --- LLVM 18 (compilación cruzada) y LLVM 21 (SDK de la PS5, Mesa, herramientas del host)
@@ -19,7 +19,7 @@ for v in 18 21; do
 done
 
 # --- Python y herramientas de build recientes
-python3 -m pip -q install --upgrade cmake ninja meson mako pyyaml ply packaging numpy pillow
+PIP_BREAK_SYSTEM_PACKAGES=1 python3 -m pip -q install --upgrade --ignore-installed cmake ninja meson mako pyyaml ply packaging numpy pillow
 
 # --- SPIRV-LLVM-Translator 21.1.8 (LLVMSPIRVLib), que necesitan las herramientas clc de Mesa
 if ! pkg-config --exists LLVMSPIRVLib; then

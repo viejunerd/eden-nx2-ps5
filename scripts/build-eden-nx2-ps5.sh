@@ -86,12 +86,16 @@ revert_prospero_patches() {
 # deps.json) y borra los archivos nuevos que crean los parches. No toca .deps ni build/.
 clean_prospero_tree() {
   local dir patch f
+  dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" || dir=""
+  # Primero se borran los archivos que crean los parches y después se hace el reset: así lo que
+  # una rama ya trae versionado (folder_games.h en eglantine-ui) vuelve, y lo que era solo del parche no.
+  if [[ -n "$dir" ]]; then
+    for patch in "$dir"/*.patch; do
+      [[ -f "$patch" ]] || continue
+      while read -r f; do rm -f -- "$f"; done < <(awk '/^--- \/dev\/null/{getline; sub(/^\+\+\+ b\//,""); print}' "$patch")
+    done
+  fi
   git reset -q --hard
-  dir="$(cd "$SCRIPT_DIR/../patches" 2>/dev/null && pwd)" || return 0
-  for patch in "$dir"/*.patch; do
-    [[ -f "$patch" ]] || continue
-    while read -r f; do rm -f -- "$f"; done < <(awk '/^--- \/dev\/null/{getline; sub(/^\+\+\+ b\//,""); print}' "$patch")
-  done
 }
 
 apply_prospero_patches() {
@@ -370,6 +374,12 @@ swap_and_build() {
   make deps-status || true
 
   [[ "$APP_TITLE" =~ ^[A-Z]{4}[0-9]{5}$ ]] || die "APP_TITLE debe tener el formato PPSA12345 (4 letras y 5 cifras)."
+  if [[ "${SKIP_HOST_CHECKS:-0}" == 1 ]]; then
+    # Autotests x86 de ProsperoEden (JIT, afinidad, TSC...) que corren en el host tras compilar.
+    # Bajo Rosetta/Docker en Mac fallan por la emulación y no tocan el binario de la PS5.
+    warn "SKIP_HOST_CHECKS=1: se omiten los check-*.py del host en tools/build-headless-native.sh"
+    sed -i -E 's|^(python3 -B "\$root/tools/check-[a-z-]+\.py")|true # \1|' tools/build-headless-native.sh
+  fi
   log "Compilando la app (build de release; la primera vez Eden tarda bastante)"
   make package JOBS="$JOBS"
   local rel="build/release/PPSA99008"
