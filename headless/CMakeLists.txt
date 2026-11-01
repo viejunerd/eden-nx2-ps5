@@ -49,6 +49,10 @@ string(REPLACE "#include <boost/container/small_vector.hpp>"
 if(NOT texture_util_header MATCHES "FixSmallVectorADL")
     # A newer Eden (Eglantine, eden-nx2) no longer has the helper: there is no copy to avoid.
     set(texture_util_derived "${texture_util_header}")
+    # The renderer patches (tools/prepare-vulkan-port.py) still call it: where it is gone, it is the identity.
+    string(REPLACE "#include <boost/container/small_vector.hpp>"
+        "#include <boost/container/small_vector.hpp>\n#include <utility>\nnamespace VideoCommon {\ntemplate <class T>\ndecltype(auto) FixSmallVectorADL(T&& value) { return std::forward<T>(value); }\n}"
+        texture_util_derived "${texture_util_derived}")
 elseif(texture_util_derived STREQUAL texture_util_header)
     message(FATAL_ERROR "Pinned texture cache util.h layout changed")
 endif()

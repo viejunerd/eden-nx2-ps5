@@ -1061,6 +1061,8 @@ download_prefix = download_source[download_begin:download_loop]
 delete_begin = download_source.index('    if (image.HasScaled()) {', download_source.index('void TextureCache<P>::DeleteImage('))
 delete_end = download_source.index('    const GPUVAddr gpu_addr', delete_begin)
 reclaimed_bytes = download_source[delete_begin:delete_end].replace('total_used_memory -=', 'bytes +=')
+# Eglantine's DeleteImage names the image by id in that accounting; here the lambda has the image.
+reclaimed_bytes = reclaimed_bytes.replace('slot_images[image_id]', 'image')
 gc_begin = download_source.index('void TextureCache<P>::RunGarbageCollector() {')
 gc_end = download_source.index('\ntemplate <class P>', gc_begin)
 gc_original = download_source[gc_begin:gc_end]
