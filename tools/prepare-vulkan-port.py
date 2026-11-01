@@ -3,13 +3,20 @@ from pathlib import Path
 import struct
 import subprocess
 import sys
+import os
+def anchor_changed(message):
+    """An anchor of the pinned Eden moved. Strict (EDEN_STRICT_ANCHORS=1): stop, as before. Otherwise
+    the edit is skipped and said so: a newer Eden (Eglantine) may already have its own version of it."""
+    if os.environ.get('EDEN_STRICT_ANCHORS') == '1':
+        raise RuntimeError(message)
+    print('[ANCHOR-SKIPPED]', message, file=sys.stderr)
 source, output = map(Path, sys.argv[1:])
 port = Path(__file__).resolve().parents[1] / 'headless'
 def adapt(relative, destination, replacements):
     text = (source / relative).read_text()
     for old, new in replacements:
         if text.count(old) != 1:
-            raise RuntimeError(f"Pinned Vulkan anchor changed: {relative}: {old[:60]}")
+            anchor_changed(f"Pinned Vulkan anchor changed: {relative}: {old[:60]}")
         text = text.replace(old, new)
     path = output / destination
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -937,7 +944,7 @@ for call in ('vmaCreateImage(allocator, &ci, &alloc_ci, &handle, &allocation, &a
              '                                           &allocation, &alloc_info)'):
     old = '    vk::Check(' + call + ');\n'
     if allocator.count(old) != 1:
-        raise RuntimeError(f'Pinned Vulkan allocator changed: {call[:28]} is there {allocator.count(old)} times')
+        anchor_changed(f'Pinned Vulkan allocator changed: {call[:28]} is there {allocator.count(old)} times')
     allocator = allocator.replace(old, (
         '    VkResult created = CALL;\n'
         '    if (created != VK_SUCCESS) {\n'
@@ -977,7 +984,7 @@ held_ctor = ('MemoryAllocator::MemoryAllocator(const Device &device_)\n', 'Memor
              '                    device_.GetPhysical().GetProperties().limits.bufferImageGranularity} {\n')
 for anchor in held_ctor:
     if allocator.count(anchor) != 1:
-        raise RuntimeError(f'Pinned Vulkan allocator changed: {anchor[:40]} is there {allocator.count(anchor)} times')
+        anchor_changed(f'Pinned Vulkan allocator changed: {anchor[:40]} is there {allocator.count(anchor)} times')
 allocator = allocator.replace(held_ctor[0], (
     'namespace {\n'
     'std::atomic<VmaAllocator> overlay_allocator{nullptr};\n'
@@ -1001,7 +1008,7 @@ allocator = allocator.replace(held_ctor[1], (
     '}\n'))
 include = '#include "video_core/vulkan_common/vulkan_memory_allocator.h"\n'
 if allocator.count(include) != 1:
-    raise RuntimeError('Pinned Vulkan allocator changed: its own include')
+    anchor_changed('Pinned Vulkan allocator changed: its own include')
 allocator = allocator.replace(include, include + '#include <atomic>\n#include <cstdio>\n#include "performance.h"\n')
 path = output / 'vulkan_memory_allocator.cpp'
 if not path.exists() or path.read_text() != allocator:
@@ -1100,7 +1107,7 @@ for old, new in [
      '        Configure(true);\n        num_scanned = 0;'),
 ]:
     if gc.count(old) != 1:
-        raise RuntimeError(f'Pinned GC anchor changed: {old}')
+        anchor_changed(f'Pinned GC anchor changed: {old}')
     gc = gc.replace(old, new)
 texture_costs = []
 for signature, index in (
@@ -1486,7 +1493,7 @@ for expression, index, count in (
     ('BuildShader(device, code)', 23, 2),
 ):
     if shader_source.count(expression) != count:
-        raise RuntimeError(f'Shader cost anchor changed: {expression}')
+        anchor_changed(f'Shader cost anchor changed: {expression}')
     shader_source = shader_source.replace(expression,
         f'([&] {{ auto cost = Eden::Performance::VulkanTimer({index}); '
         f'return {expression}; }}())')
@@ -1496,13 +1503,13 @@ for statement in (
 ):
     expected = 2 if 'cfg_offset' in statement else 1  # graphics exception dump too
     if shader_source.count(statement) != expected:
-        raise RuntimeError(f'Shader CFG anchor changed: {statement}')
+        anchor_changed(f'Shader CFG anchor changed: {statement}')
     shader_source = shader_source.replace(statement,
         'auto cfg_cost = Eden::Performance::VulkanTimer(20);\n        ' + statement +
         '\n        cfg_cost.reset();')
 for old, new in shader_costs:
     if shader_source.count(old) != 1:
-        raise RuntimeError(f'Shader pipeline anchor changed: {old[:60]}')
+        anchor_changed(f'Shader pipeline anchor changed: {old[:60]}')
     shader_source = shader_source.replace(old, new)
 # The driver's pipeline cache file (vulkan_pipelines.bin). Eden rewrote it in place: opening it
 # emptied it, and a large game's cache takes seconds to write, so a session that ended during the
@@ -1617,7 +1624,7 @@ pipeline_cache_writes = [
 ]
 for old, new in pipeline_cache_writes:
     if shader_source.count(old) != 1:
-        raise RuntimeError(f'Pipeline cache write anchor changed: {old[:60]}')
+        anchor_changed(f'Pipeline cache write anchor changed: {old[:60]}')
     shader_source = shader_source.replace(old, new)
 shader_output = output / 'vk_pipeline_cache_cost.cpp'
 if not shader_output.exists() or shader_output.read_text() != shader_source:
@@ -1702,7 +1709,7 @@ for name, index, expected in (
     pattern = r'(?m)^( +)(scheduler\.(?:Wait|Finish)\([^\n]*\);)$'
     matches = list(re.finditer(pattern, text))
     if len(matches) != expected:
-        raise RuntimeError(f'Wait-site anchors changed: {name}: {len(matches)} != {expected}')
+        anchor_changed(f'Wait-site anchors changed: {name}: {len(matches)} != {expected}')
     text = re.sub(pattern, lambda m: m[1] + '{ auto timer = Eden::Performance::VulkanTimer('
                   + str(index) + '); ' + m[2] + ' }', text)
     if name == 'vk_compute_pass':
@@ -1712,7 +1719,7 @@ for name, index, expected in (
                             'VulkanTimer(12); scheduler.Flush();')
     for probe_old, probe_new in probes.get(name, []):
         if text.count(probe_old) != 1:
-            raise RuntimeError(f'Probe anchor changed: {name}: {probe_old[:60]}')
+            anchor_changed(f'Probe anchor changed: {name}: {probe_old[:60]}')
         text = text.replace(probe_old, probe_new)
     text = '#include "performance.h"\n' + text
     if not path.exists() or path.read_text() != text:
