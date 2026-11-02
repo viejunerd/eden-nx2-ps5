@@ -11,6 +11,16 @@ broken = []
 def adapt(relative, destination, replacements):
     text = (source / relative).read_text()
     for old, new in replacements:
+        if relative.endswith('/vk_rasterizer.cpp') and old.endswith('// update engine as channel may be different.') and old not in text:
+            marker = '// Donkey Kong Bananza\'s terrain:'
+            if marker in text:
+                old = old.replace('// update engine as channel may be different.', marker)
+                new = new.replace('// update engine as channel may be different.', marker)
+        if relative.endswith('/vulkan_memory_allocator.cpp') and old.startswith('    vk::Check(vmaCreateBuffer(') and old not in text:
+            if 'VkResult result = vmaCreateBuffer(' in text:
+                # This core already retries outside the driver budget on allocation failure.
+                if 'host_ci.flags &= ~VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;' in text:
+                    continue
         if text.count(old) != 1:
             if report:
                 broken.append(f"{relative}: {old[:70]!r} (matches {text.count(old)})")
@@ -1095,9 +1105,15 @@ shader_costs = [
      '        }\n'
      '    }\n'
      '    return BuiltPipeline(current_pipeline);\n}'),
-    ('    if (!is_new) {\n        return pipeline.get();\n    }\n    pipeline = CreateComputePipeline(key, shader);\n    return pipeline.get();\n}',
+    ('    if (!is_new) {\n        return pipeline.get();\n    }\n'
+     '    try {\n        pipeline = CreateComputePipeline(key, shader);\n'
+     '    } catch (const Shader::TensorRejected&) {\n        compute_cache.erase(pair);\n'
+     '        rejected_tensor_pipelines.emplace(key, std::current_exception());\n        throw;\n    }\n'
+     '    return pipeline.get();\n}',
      '    if (is_new) {\n'
-     '        pipeline = CreateComputePipeline(key, shader);\n'
+     '        try {\n            pipeline = CreateComputePipeline(key, shader);\n'
+     '        } catch (const Shader::TensorRejected&) {\n            compute_cache.erase(pair);\n'
+     '            rejected_tensor_pipelines.emplace(key, std::current_exception());\n            throw;\n        }\n'
      '    }\n'
      '    if (::Eden::DevVulkan::trace_pipelines && pipeline) {\n'
      '        static std::unordered_set<const void*> traced;\n'
@@ -1129,6 +1145,8 @@ shader_costs = [
 # Time both graphics and compute preparation, without modifying the compiler or
 # reading guest state on another thread. These intervals overlap shader_prepare.
 shader_source = (source / 'src/video_core/renderer_vulkan/vk_pipeline_cache.cpp').read_text()
+shader_source = shader_source.replace('    auto it{graphics_cache.find(graphics_key)};\n    if (it == graphics_cache.end()) {',
+                                      '    auto it{graphics_cache.find(graphics_key)};\n    const bool is_new = it == graphics_cache.end();\n    if (is_new) {')
 for expression, index, count in (
     ('main_pools.ReleaseContents()', 19, 2),
     ('TranslateProgram(pools.inst, pools.block, env, cfg, host_info)', 21, 3),

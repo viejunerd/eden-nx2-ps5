@@ -53,6 +53,7 @@
 #endif
 #ifdef PS5_NATIVE
 #include "native_directory.h"
+#include "extracted_game.h"
 #include "cache_budget.h"
 #include "performance.h"
 #include "stall_watchdog.h"
@@ -421,7 +422,8 @@ int main(int argc, char** argv) {
         std::string forwarded_game;
         bool forwarded_session = false;
         if (!forwarded.rom.empty() && last_crash.report.empty()) {
-            const std::string path = Eden::ResolveForwardedRom(forwarded.rom, Eden::AssetsPath("roms"));
+            std::string path = Eden::ResolveForwardedRom(forwarded.rom, Eden::AssetsPath("roms"));
+            if (const auto main = Eden::ExtractedGameMain(path); !main.empty()) path = main;
             if (!path.empty() && Eden::FileExists(path)) forwarded_game = path;
             else launch_error = "Forwarded game not found: " + (path.empty() ? forwarded.rom : path);
             Eden::BootTrace::Line("forwarded game: %s", forwarded_game.empty() ? "not found" : "found");
@@ -457,7 +459,10 @@ int main(int argc, char** argv) {
 #endif
                 // dev-settings launcher=first opens the launcher instead of the development title
                 // (launcher work: its captures and file-driven input need a development build).
-                if (entry == "launcher=first") autoboot_pending = false;
+                if (entry == "launcher=first") {
+                    autoboot_pending = false;
+                    forwarded_game.clear();
+                }
             }
             // After a crash the launcher opens with its notice, not the development title again.
             if (!last_crash.report.empty()) autoboot_pending = false;
@@ -486,6 +491,9 @@ int main(int argc, char** argv) {
         }
 #endif
         std::string selected_game;
+#if defined(EDEN_DEV_ROM_ID) && !defined(EDEN_DEV_PROFILE)
+        bool compatibility_probe = false;
+#endif
         Eden::Crash::SetSession("launcher", false);
 #ifdef PS5_NATIVE
         // A Vulkan session at 120 Hz handed the output back at 60 Hz as it closed; the launcher
@@ -518,6 +526,9 @@ int main(int argc, char** argv) {
         forwarded_session = false;
 #if defined(EDEN_DEV_PROFILE) || defined(EDEN_DEV_ROM_ID)
         if (std::exchange(autoboot_pending, false)) {
+#if defined(EDEN_DEV_ROM_ID) && !defined(EDEN_DEV_PROFILE)
+        compatibility_probe = true;
+#endif
         // Match the title ID in the file name, else in the ROM's own metadata; the game files
         // folder first, then the pre-1.000.020 assets folder that still holds other test titles.
         const auto development_title = std::strtoull(development_id.c_str(), nullptr, 16);
@@ -526,7 +537,7 @@ int main(int argc, char** argv) {
             for (const auto& entry : Eden::ReadNativeDirectory(folder, rom_error)) {
                 const auto filename = entry.path().filename().string();
                 const auto extension = entry.path().extension();
-                if (extension != ".nsp" && extension != ".xci") continue;
+                if (extension != ".nsp" && extension != ".xci" && extension != ".nup") continue;
                 const auto path = folder + "/" + filename;
                 if (filename.find(development_id) != std::string::npos ||
                     eden_game_title_id(path.c_str()) == development_title) {
@@ -536,9 +547,15 @@ int main(int argc, char** argv) {
             }
             if (!selected_game.empty()) break;
         }
-        if (selected_game.empty())
-            throw std::runtime_error("Development ROM not found");
-        } else {
+        if (selected_game.empty()) {
+            Eden::BootTrace::Line("development game %s not found; opening launcher", development_id.c_str());
+            launch_error = "Configured game was not found. Select another game.";
+        }
+        }
+        if (selected_game.empty()) {
+#if defined(EDEN_DEV_ROM_ID) && !defined(EDEN_DEV_PROFILE)
+            compatibility_probe = false;
+#endif
             Eden::BootTrace::Line("opening the launcher");
             selected_game = SelectEglantinePS5Game(rooms, launch_error);
         }
@@ -1692,8 +1709,13 @@ int main(int argc, char** argv) {
                             lock.lock();
                         }
 #elif defined(EDEN_DEV_ROM_ID)
-                        // Compatibility probes are bounded to ten minutes by default. Shader
-                        // debugging can opt into an hour without enabling the full profiler.
+                        // Library and forwarded launches are ordinary gameplay, even
+                        // in a build that also supports automatic compatibility probes.
+                        if (!compatibility_probe) {
+                            completion->wake.wait(lock, completed);
+                        } else {
+                        // Only automatic development-title probes stop after ten minutes.
+                        // Shader debugging can opt into an hour (EDEN_DEV_LONG_PROBE) without the full profiler.
                         const unsigned observation_samples = std::getenv("EDEN_DEV_LONG_PROBE") ? 720 : 120;
                         for (unsigned sample = 0; sample < observation_samples; ++sample) {
                             if (completion->wake.wait_for(lock, std::chrono::seconds(5), completed)) break;
@@ -1704,12 +1726,14 @@ int main(int argc, char** argv) {
                             lock.unlock();
 #ifdef EDEN_DEV_VULKAN
                             std::error_code capture_error;
-                            const bool capture_requested = performance_run && sample >= 11 &&
+                            const bool capture_requested = performance_run &&
+                                (sample >= 11 || std::getenv("EDEN_DEV_CAPTURE_EARLY")) &&
                                 std::filesystem::remove(Eden::AppFile("capture-once.txt"), capture_error);
                             if (!performance_run || capture_requested)
 #endif
                             window.CaptureNextFrame(system.GPU().Renderer(), [] {});
                             lock.lock();
+                        }
                         }
 #else
                         completion->wake.wait(lock, completed);

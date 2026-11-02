@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Applies the patches in tools/eglantine-patches/ to the Eglantine submodule's working tree, which is
-# what the build reads. These include upstream nx2-experimental changes and local compatibility
-# fixes for service logging, large texture arrays, Switch 2 storage buffers and native shaders.
-# Safe to run again: a patch that is already in is left alone.
+# what the build reads. The Zortos core is referenced directly by the submodule;
+# this hook supports optional local patches. Safe to run again: applied patches are left alone.
 # --revert takes them out (make update does, before it moves the submodule).
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -11,6 +10,7 @@ cd "$root"
 mode=${1:-apply}
 shopt -s nullglob
 patches=("$root"/tools/eglantine-patches/*.patch)
+((${#patches[@]})) || exit 0
 [[ $mode == --revert ]] && mapfile -t patches < <(printf '%s\n' "${patches[@]}" | sort -r)
 for patch in "${patches[@]}"; do
     name=$(basename "$patch")
