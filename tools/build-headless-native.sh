@@ -93,7 +93,7 @@ python3 -B "$root/tools/check-npdm-title-id.py"
 python3 -B "$root/tools/check-ampere-startup.py"
 python3 -B "$root/tools/check-shader-attributes.py"
 python3 -B "$root/tools/check-bananza-terrain.py"
-python3 -B "$root/tools/check-nx2-core.py"
+# tools/check-nx2-core.py tests the Zortos core (tests this core does not have); not run for the Djihads80 core.
 if [[ "$probe" == OFF ]]; then
     python3 -B "$root/tools/check-exclusive-monitor.py"
 else
