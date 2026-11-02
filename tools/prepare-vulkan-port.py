@@ -1105,15 +1105,9 @@ shader_costs = [
      '        }\n'
      '    }\n'
      '    return BuiltPipeline(current_pipeline);\n}'),
-    ('    if (!is_new) {\n        return pipeline.get();\n    }\n'
-     '    try {\n        pipeline = CreateComputePipeline(key, shader);\n'
-     '    } catch (const Shader::TensorRejected&) {\n        compute_cache.erase(pair);\n'
-     '        rejected_tensor_pipelines.emplace(key, std::current_exception());\n        throw;\n    }\n'
-     '    return pipeline.get();\n}',
+    ('    if (!is_new) {\n        return pipeline.get();\n    }\n    pipeline = CreateComputePipeline(key, shader);\n    return pipeline.get();\n}',
      '    if (is_new) {\n'
-     '        try {\n            pipeline = CreateComputePipeline(key, shader);\n'
-     '        } catch (const Shader::TensorRejected&) {\n            compute_cache.erase(pair);\n'
-     '            rejected_tensor_pipelines.emplace(key, std::current_exception());\n            throw;\n        }\n'
+     '        pipeline = CreateComputePipeline(key, shader);\n'
      '    }\n'
      '    if (::Eden::DevVulkan::trace_pipelines && pipeline) {\n'
      '        static std::unordered_set<const void*> traced;\n'
